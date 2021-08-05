@@ -2,16 +2,17 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from matplotlib.ticker import FormatStrFormatter, FuncFormatter
+from matplotlib.ticker import FuncFormatter
 
 
 def _p(k, P, N, alpha):
     '''
     Outstanding principal at step k
     '''
-    A = P * ( np.power(1 + alpha, k))
-    A -=  P * np.power(1 + alpha, N) * (np.power(1 + alpha, k) -1) / (np.power(1 + alpha, N) -1)
+    A = P * (np.power(1 + alpha, k))
+    A -= P * np.power(1 + alpha, N) * (np.power(1 + alpha, k) - 1) / (np.power(1 + alpha, N) - 1)
     return A
+
 
 def _I(k, P, N, alpha):
     '''
@@ -31,20 +32,20 @@ def _X(k, P, N, alpha):
     '''
     Amount payed toward principle at step k
     '''
-    return _f(P, N, alpha) - alpha * _p( k, P, N, alpha)
+    return _f(P, N, alpha) - alpha * _p(k, P, N, alpha)
+
 
 def _total(P, N, alpha):
     return N * _f(P, N, alpha)
-
 
 
 def _style(df):
     return (
         df
         .style
-        .format("${:,.0f}", subset=pd.IndexSlice['Total price':,:])
-        .format("{:,.2f}", subset=pd.IndexSlice['Interest to principal ratio',:])
-        .format("{:.1%}", subset=pd.IndexSlice['PMI rate',:])
+        .format("${:,.0f}", subset=pd.IndexSlice['Sale Price':,:])
+        .format("{:,.3f}", subset=pd.IndexSlice['Interest to Principal Ratio',:])
+        .format("{:.1%}", subset=pd.IndexSlice['PMI Rate',:])
         .applymap(lambda x: "font-weight:bold")
         .set_table_styles(
             [
@@ -57,20 +58,20 @@ def _style(df):
 
 
 class Mortgage:
-    def __init__(self, total_price, num_years, interest_rate, down_payment_fraction, PMI_rate=0.01):
-        self.total_price = total_price
+
+    def __init__(self, sale_price, num_years, interest_rate, down_payment_fraction, PMI_rate=0.01, tax_rate=1.4e-2):
+        self.sale_price = sale_price
         self.num_years = num_years
         self.num_months = self.num_years * 12
         self.interest_rate = interest_rate
         self.down_payment_fraction = down_payment_fraction
-        self.down_payment = self.down_payment_fraction * self.total_price
+        self.down_payment = self.down_payment_fraction * self.sale_price
         
         # Annual PMI rate
         self.PMI_rate = PMI_rate
         
-        self.tax_rate = 1.22e-2
-        
-        self.principal = self.total_price - self.down_payment
+        self.tax_rate = tax_rate
+        self.principal = self.sale_price - self.down_payment
         self.summary_table = None
         self.compute_summary()
         
@@ -78,7 +79,6 @@ class Mortgage:
         if not self.summary_table:
             self.compute_summary()
         return self.summary_table
-    
     
     def _compute_total_PMI_payment(self):
         '''Compute the total Mortgage insurance payed.
@@ -94,7 +94,6 @@ class Mortgage:
         ps = _p(ns, P, N, alpha)
         return np.sum([ self.monthly_PMI_payment for p in ps if p > 0.8 * self.principal])
     
-    
     def compute_summary(self):
         r = self.interest_rate
         alpha = r / 12.
@@ -107,43 +106,41 @@ class Mortgage:
             self.monthly_PMI_payment = 0    
         self.total_PMI_payment = self._compute_total_PMI_payment()
 			
-        total_tax = self.tax_rate * self.total_price * self.num_years
-        monthly_tax = self.tax_rate * self.total_price / 12.
-        total_loan_repayment = _total(P,N,alpha)
+        total_tax = self.tax_rate * self.sale_price * self.num_years
+        monthly_tax = self.tax_rate * self.sale_price / 12.
+        total_loan_repayment = _total(P, N, alpha)
         grand_total = total_loan_repayment + total_tax + self.down_payment + self.total_PMI_payment
         
         total_interest = total_loan_repayment - self.principal
         
         self.df_summary = pd.DataFrame(
             [
-                ("Down payment fraction", self.down_payment_fraction),
+                ("Down Payment Fraction", self.down_payment_fraction),
 				("Interest Rate", self.interest_rate),
-				("PMI rate", self.PMI_rate),
+				("PMI Rate", self.PMI_rate),
 
-                ("Total price", self.total_price),
-                ("Down payment", self.down_payment),
+                ("Sale Price", self.sale_price),
+                ("Down Payment", self.down_payment),
                 ("Principal loan", self.principal),
 
-                ("Interest to principal ratio", np.round(total_interest / self.principal, 2)),
-                ("monthly PMI Insurance", self.monthly_PMI_payment),
-                ("monthly principal + interest", _f(P, N, alpha)),
-                ("monthly payment", _f(P, N, alpha) + self.monthly_PMI_payment),
-                ("monthly payment + tax (approx)", _f(P, N, alpha) + self.monthly_PMI_payment + monthly_tax),
+                ("Interest to Principal Ratio", np.round(total_interest / self.principal, 2)),
+                ("Monthly PMI Insurance", self.monthly_PMI_payment),
+                ("Monthly Principal + Interest", _f(P, N, alpha)),
+                ("Monthly loan Payment", _f(P, N, alpha) + self.monthly_PMI_payment),
+                ("Monthly Payment + Tax (approx)", _f(P, N, alpha) + self.monthly_PMI_payment + monthly_tax),
                 
-                ("Total tax paid", total_tax),
-                ("Total loan payment", total_loan_repayment),
-                ("Total interest paid", total_interest),
-                ("Total PMI paid", self.total_PMI_payment),
-                ("Total cost (no tax)", total_loan_repayment + self.down_payment + self.total_PMI_payment),
-                ("Grand total", grand_total),
+                ("Total Tax Paid*", total_tax),
+                ("Total loan Payment", total_loan_repayment),
+                ("Total Interest Paid", total_interest),
+                ("Total PMI Paid*", self.total_PMI_payment),
+                ("Total Cost (no tax)", total_loan_repayment + self.down_payment + self.total_PMI_payment),
+                ("Grand Total", grand_total),
                 
             ],
             columns=["item", 'value']
         ).set_index('item')
+        self.df_summary.index.name = None
         self.summary_table = _style(self.df_summary)
-    
-    
-    
         
     def plot(self):
         alpha = self.interest_rate / 12.
@@ -156,46 +153,45 @@ class Mortgage:
         ps = _p(ns, P, N, alpha)
 
         # Principal payments
-        xs= _X(ns, P, N, alpha)
+        xs = _X(ns, P, N, alpha)
 
         # Interest payments
-        Is= _I(ns, P, N, alpha)
+        Is = _I(ns, P, N, alpha)
 
         frac_price = 0.8
         
         # 80% of the total price
-        price_q80 = frac_price * self.total_price
+        price_q80 = frac_price * self.sale_price
         
-        plt.figure(figsize=(15,4))
+        plt.figure(figsize=(15, 4), dpi=100)
         with sns.axes_style('whitegrid'):
-            plt.plot(ys, ps, '-.', label="Outstanding Principal") 
-            plt.plot(ys, price_q80* np.ones_like(ys), '-r', label="{:,.0%} of sale price".format(frac_price))
+            plt.plot(ys, ps, '-.', label="Principal Balance") 
+            plt.plot(ys, price_q80 * np.ones_like(ys), '-r', label="{:,.0%} of sale price".format(frac_price))
             plt.legend(loc=3)
-            plt.xticks(np.arange(N/12 + 1))
-            plt.xlim(0, N/12)
+            plt.xticks(np.arange(N / 12 + 1))
+            plt.xlim(0, N / 12)
             plt.ticklabel_format(style="sci")
-            plt.title('Outstanding principal as a function of time', fontweight="bold")
+            plt.title('Principal Balance As A Function Of Time', fontweight="bold")
             plt.xlabel('Time (year)')
 				
             plt.gca().yaxis.set_major_formatter(
                 FuncFormatter(
-                    lambda x,pos: "${:,.0f}".format(x)
+                    lambda x, pos: "${:,.0f}".format(x)
             ))
 
-        plt.figure(figsize=(15,4))
+        plt.figure(figsize=(15, 4), dpi=100)
         with sns.axes_style('whitegrid'):
-            plt.title('Principal and interest payments as a function of time', fontweight="bold")
-            plt.plot(ys, Is, '-.', label="Interest") 
-            plt.plot(ys, xs, '-.', label="principal payment") 
+            plt.title('Monthly Principal And Interest Payments As A Function Of Time', fontweight="bold")
+            plt.plot(ys, Is, '-.', label="Interest Payment") 
+            plt.plot(ys, xs, '-.', label="Principal Payment") 
             plt.legend(loc=3)
             plt.xlabel('Time (year)')
-            plt.xticks(np.arange(N/12 + 1))
-            plt.xlim(0, N/12)
+            plt.xticks(np.arange(N / 12 + 1))
+            plt.xlim(0, N / 12)
             plt.gca().yaxis.set_major_formatter(
                 FuncFormatter(
-                    lambda x,pos: "${:,.0f}".format(x)
+                    lambda x, pos: "${:,.0f}".format(x)
             ))
-
             
     def get_num_insurance_payments(self):
         alpha = self.interest_rate / 12.
@@ -210,19 +206,62 @@ class Mortgage:
         frac_price = 0.8
         
         # 80% of the total price
-        price_q80 = frac_price * self.total_price
+        price_q80 = frac_price * self.sale_price
         
         if max(ps) >= price_q80:
             n_months = 0
             return n_months
         else:
             pass
-        
 
-def main():
-	pass
-	
-	
 
-if __name__ == "__main__":
-	main()
+def table_multiple_interest_rates(sale_price, down_payment_percent, interest_rates=[], num_years=30, pmi_rate=0.005, tax_rate=1.4e-2):
+    """ Compare multiple mortgages with different interest rates"""
+    assert isinstance(interest_rates, list), "interest_rates must be a list"
+    assert len(interest_rates) > 0
+    
+    list_mortgages = [
+        Mortgage(
+            sale_price=sale_price,
+            num_years=num_years,
+            interest_rate=interest_rate,
+            down_payment_fraction=down_payment_percent / 100.,
+            PMI_rate=pmi_rate,
+            tax_rate=tax_rate
+        ) for interest_rate in interest_rates
+    ]
+
+    df = pd.concat(
+        [m.df_summary for m in list_mortgages],
+        axis=1
+    )
+    
+    df.columns = ["{:.2%}".format(m.interest_rate) for m in list_mortgages]
+    df.columns.name = "Interest Rate"
+    table = _style(df).background_gradient(cmap="Reds", axis=1)
+    return table, list_mortgages
+
+
+def table_multiple_down_payment_percents(sale_price, interest_rate, down_payment_percents=[], num_years=30, pmi_rate=0.005, tax_rate=1.4e-2):
+    """compare multiple mortgages with different down payment percentages"""
+    list_mortgages = [
+        Mortgage(
+            sale_price=sale_price,
+            num_years=num_years,
+            interest_rate=interest_rate,
+            down_payment_fraction=pct / 100.,
+            PMI_rate=pmi_rate,
+            tax_rate=tax_rate
+        ) for pct in down_payment_percents
+    ]
+
+    df = pd.concat(
+        [m.df_summary for m in list_mortgages],
+        axis=1
+    )
+    
+    df.columns = ["{:.1%}".format(m.down_payment_fraction) for m in list_mortgages]
+    df.columns.name = "Down Payment Rate"
+    table = _style(df).background_gradient(cmap="Reds", axis=1)
+    return table, list_mortgages
+
