@@ -1,5 +1,5 @@
 # MortgageVis
-Simple Python/Jupyter tool for calculating and visualizing costs associated with a mortgage. Enter the sale price, down payment and interest rate and monthly payments including interest and principal payment, tax (approximate), PMI, interest to pcincipal ratio, total interest payed, total cost wil be calculated.
+Simple Python/Jupyter tool for calculating and visualizing costs associated with a mortgage. Enter the sale price, down payment and interest rate, and see the monthly payments including interest and principal payment, tax (approximate), PMI, interest to pcincipal ratio, total interest payed, total cost wil be calculated.
 You can specify a range of values for interest rate or down payment and view a table comparing the outcomes.
 
 <img src="/examples/mortgage-table.png" alt="Multiple Down Payments" width="600" >
